@@ -16,16 +16,13 @@ type DB struct {
 }
 
 // Put inserts a key-value pair into the database.
-// It returns an error if the key or value is empty.
+// It returns an error if the key is empty.
 // It returns an error if the index update failed.
 // It returns an error if there is an error writing to disk.
 func (db *DB) Put(key, value []byte) error {
 	// key and value validation
 	if len(key) == 0 {
 		return ErrKeyIsEmpty
-	}
-	if len(value) == 0 {
-		return ErrValueIsEmpty
 	}
 
 	// new log record

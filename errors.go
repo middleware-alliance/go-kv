@@ -6,7 +6,6 @@ var (
 	ErrKeyNotFound       = errors.New("key not found")
 	ErrKeyExists         = errors.New("key already exists")
 	ErrKeyIsEmpty        = errors.New("key is empty")
-	ErrValueIsEmpty      = errors.New("value is empty")
 	ErrIndexUpdateFailed = errors.New("index update failed")
 	ErrDataFileNotFound  = errors.New("data file not found")
 )

@@ -2,6 +2,11 @@ package data
 
 import "go-kv/fio"
 
+const (
+	// DataFileNamePrefix is the prefix of data file names.
+	DataFileNameSuffix = ".data"
+)
+
 // DataFile is a struct that represents a data file.
 type DataFile struct {
 	FileId    uint32        // unique identifier of the file
@@ -15,8 +20,8 @@ func OpenDataFile(dirPath string, fileId uint32) (*DataFile, error) {
 }
 
 // ReadLogRecord reads the data from the data file at the given offset.
-func (df *DataFile) ReadLogRecord(offset int64) (*LogRecord, error) {
-	return nil, nil
+func (df *DataFile) ReadLogRecord(offset int64) (*LogRecord, int64, error) {
+	return nil, 0, nil
 }
 
 // Write writes the given data to the data file.

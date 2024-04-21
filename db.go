@@ -23,7 +23,7 @@ type DB struct {
 	loadDataFileIds []int // created by loadDataFiles(), only used for loadIndexFromDataFiles(), not used in other methods
 }
 
-// Open opens a database with the given options.
+// Open opens a (bitcask) database with the given options.
 // It returns an error if the options are invalid.
 func Open(options Options) (*DB, error) {
 	// check options for validity

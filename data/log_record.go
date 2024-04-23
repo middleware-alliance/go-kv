@@ -4,7 +4,7 @@ type LogRecordType uint8
 
 const (
 	LogRecordNormal LogRecordType = iota
-	LogRecordTypeDeleted
+	LogRecordDeleted
 )
 
 // LogRecord represents a record in the log.

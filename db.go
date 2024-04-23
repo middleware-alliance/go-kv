@@ -146,7 +146,7 @@ func (db *DB) loadIndexFromDataFiles() error {
 				Fid:    fieldId,
 				Offset: offset,
 			}
-			if record.Type == data.LogRecordTypeDeleted {
+			if record.Type == data.LogRecordDeleted {
 				db.index.Delete(record.Key)
 			} else {
 				db.index.Put(record.Key, logRecordPos)
@@ -196,6 +196,39 @@ func (db *DB) Put(key, value []byte) error {
 	return nil
 }
 
+// Delete deletes a key-value pair from the database.
+func (db *DB) Delete(key []byte) error {
+	// key validation
+	if len(key) == 0 {
+		return ErrKeyIsEmpty
+	}
+
+	// validate key existence
+	if pos := db.index.Get(key); pos == nil {
+		return nil
+	}
+
+	// new log record
+	logRecord := &data.LogRecord{
+		Key:  key,
+		Type: data.LogRecordDeleted,
+	}
+
+	// append log record to active data file
+	_, err := db.appendLogRecord(logRecord)
+	if err != nil {
+		return err
+	}
+
+	// update memory index
+	if ok := db.index.Delete(key); !ok {
+		return ErrIndexUpdateFailed
+	}
+
+	return nil
+}
+
+// appendLogRecord appends a log record to the active data file.
 func (db *DB) appendLogRecord(logRecord *data.LogRecord) (*data.LogRecordPos, error) {
 	db.mut.Lock()
 	defer db.mut.Unlock()
@@ -305,7 +338,7 @@ func (db *DB) Get(key []byte) ([]byte, error) {
 	}
 
 	// log record validation, if log record is deleted, return error
-	if logRecord.Type == data.LogRecordTypeDeleted {
+	if logRecord.Type == data.LogRecordDeleted {
 		return nil, ErrKeyNotFound
 	}
 

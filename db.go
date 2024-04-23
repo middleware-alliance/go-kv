@@ -146,10 +146,14 @@ func (db *DB) loadIndexFromDataFiles() error {
 				Fid:    fieldId,
 				Offset: offset,
 			}
+			var ok bool
 			if record.Type == data.LogRecordDeleted {
-				db.index.Delete(record.Key)
+				ok = db.index.Delete(record.Key)
 			} else {
-				db.index.Put(record.Key, logRecordPos)
+				ok = db.index.Put(record.Key, logRecordPos)
+			}
+			if !ok {
+				return ErrIndexUpdateFailed
 			}
 
 			// update offset for next iteration

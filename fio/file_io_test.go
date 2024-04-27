@@ -119,13 +119,13 @@ func TestFileIO_Read(t *testing.T) {
 			f := tt.fields.fd
 			got, err := f.Read(tt.args.bytes, tt.args.offset)
 			if !errors.Is(err, tt.wantErr) {
-				t.Errorf("Read() error = %v", err)
+				t.Errorf("ReadNBytes() error = %v", err)
 			}
 			if got != tt.want {
-				t.Errorf("Read() got = %v, want %v", got, tt.want)
+				t.Errorf("ReadNBytes() got = %v, want %v", got, tt.want)
 			}
 			if string(tt.wantContent) != string(tt.args.bytes[:got]) {
-				t.Errorf("Read() content = %v, want %v", string(tt.args.bytes[:got]), string(tt.wantContent))
+				t.Errorf("ReadNBytes() content = %v, want %v", string(tt.args.bytes[:got]), string(tt.wantContent))
 			}
 		})
 	}

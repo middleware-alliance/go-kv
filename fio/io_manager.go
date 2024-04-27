@@ -14,4 +14,12 @@ type IOManager interface {
 
 	// Close closes the file.
 	Close() error
+
+	// Size sizes the file to the given size.
+	Size() (int64, error)
+}
+
+// NewIOManager creates a new IOManager for the given file name.
+func NewIOManager(fileName string) (IOManager, error) {
+	return NewFileIOManager(fileName)
 }

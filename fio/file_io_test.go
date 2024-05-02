@@ -9,6 +9,7 @@ import (
 
 // To run this test, go to the fio directory and run the following command:
 // go test -v ./
+// go test -v ./...
 // go test -v -run TestFileIO_Close
 
 func destroyFile(filePath string) {

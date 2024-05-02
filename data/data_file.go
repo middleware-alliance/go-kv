@@ -6,6 +6,7 @@ import (
 	"go-kv/fio"
 	"hash/crc32"
 	"io"
+	"strings"
 )
 
 var (
@@ -13,7 +14,7 @@ var (
 )
 
 const (
-	// DataFileNamePrefix is the prefix of data file names.
+	// DataFileNameSuffix is the prefix of data file names.
 	DataFileNameSuffix = ".data"
 )
 
@@ -26,6 +27,9 @@ type DataFile struct {
 
 // OpenDataFile opens a data file with the given fileId in the given directory.
 func OpenDataFile(dirPath string, fileId uint32) (*DataFile, error) {
+	if !strings.HasSuffix(dirPath, "/") {
+		dirPath = dirPath + "/"
+	}
 	// file name is the fileId with the suffix ".data"
 	fileName := fmt.Sprintf("%s%09d", dirPath, fileId) + DataFileNameSuffix
 	// create a new file IO manager for the file

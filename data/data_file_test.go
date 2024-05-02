@@ -2,7 +2,9 @@ package data
 
 import (
 	"errors"
+	"fmt"
 	"os"
+	"reflect"
 	"testing"
 )
 
@@ -150,6 +152,97 @@ func TestOpenDataFile(t *testing.T) {
 			}
 			if got == nil {
 				t.Errorf("OpenDataFile() got = %v, want not nil", got)
+			}
+		})
+	}
+}
+
+func TestDataFile_ReadLogRecord(t *testing.T) {
+	// remove the old data file
+	fileName := fmt.Sprintf("%s%09d", os.TempDir(), 1) + DataFileNameSuffix
+	err := os.Remove(fileName)
+	if err != nil {
+		t.Error(err)
+	}
+
+	dataFile, err := OpenDataFile(os.TempDir(), 1)
+	if err != nil {
+		t.Error(err)
+	}
+
+	oneRecord := &LogRecord{
+		Type:  LogRecordNormal,
+		Key:   []byte("key"),
+		Value: []byte("bitcast kv go"),
+	}
+	writeOneLogRecord, writeOneSize := EncodeLogRecord(oneRecord)
+	err = dataFile.Write(writeOneLogRecord)
+	if err != nil {
+		t.Error(err)
+	}
+
+	twoRecord := &LogRecord{
+		Type:  LogRecordNormal,
+		Key:   []byte("key"),
+		Value: []byte("a new bitcast kv go"),
+	}
+	writeTwoLogRecord, writeTwoSize := EncodeLogRecord(twoRecord)
+	err = dataFile.Write(writeTwoLogRecord)
+	if err != nil {
+		t.Error(err)
+	}
+
+	deleteRecord := &LogRecord{
+		Type:  LogRecordDeleted,
+		Key:   []byte("key"),
+		Value: []byte(""),
+	}
+	deleteLogRecord, deleteSize := EncodeLogRecord(deleteRecord)
+	err = dataFile.Write(deleteLogRecord)
+	if err != nil {
+		t.Error(err)
+	}
+
+	tests := []struct {
+		name     string
+		dataFile *DataFile
+		offset   int64
+		want     *LogRecord
+		size     int64
+	}{
+		{
+			name:     "Test one ReadLogRecord",
+			dataFile: dataFile,
+			offset:   0,
+			want:     oneRecord,
+			size:     writeOneSize,
+		},
+		{
+			name:     "Test two ReadLogRecord",
+			dataFile: dataFile,
+			offset:   writeOneSize,
+			want:     twoRecord,
+			size:     writeTwoSize,
+		},
+		{
+			name:     "Test three delete ReadLogRecord",
+			dataFile: dataFile,
+			offset:   writeOneSize + writeTwoSize,
+			want:     deleteRecord,
+			size:     deleteSize,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			readRecord, size, err := tt.dataFile.ReadLogRecord(tt.offset)
+			if err != nil {
+				t.Errorf("ReadLogRecord() error = %v", err)
+			}
+			if !reflect.DeepEqual(readRecord, tt.want) {
+				t.Errorf("ReadLogRecord() readRecord = %v, want %v", readRecord, tt.want)
+			}
+			if size != tt.size {
+				t.Errorf("ReadLogRecord() size = %v, want %v", size, tt.size)
 			}
 		})
 	}

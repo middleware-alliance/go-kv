@@ -1,5 +1,7 @@
 package go_kv
 
+import "os"
+
 type Options struct {
 	DirPath      string    // directory path to store the data
 	DataFileSize int64     // size of each data file in bytes
@@ -15,3 +17,10 @@ const (
 	// ART is an Adaptive Radix Tree based index.
 	ART
 )
+
+var DefaultOptions = Options{
+	DirPath:      os.TempDir(),
+	DataFileSize: 256 * 1024 * 1024, // 256MB
+	SyncWrites:   false,
+	IndexType:    Btree,
+}

@@ -39,8 +39,8 @@ func (B BTree) Put(key []byte, pos *data.LogRecordPos) bool {
 	}
 	B.lock.Lock()
 	defer B.lock.Unlock()
-	insert := B.tree.ReplaceOrInsert(it)
-	return insert != nil
+	_ = B.tree.ReplaceOrInsert(it)
+	return true
 }
 
 // Get retrieves the value associated with the given key.

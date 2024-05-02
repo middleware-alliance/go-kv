@@ -193,7 +193,7 @@ func (db *DB) Put(key, value []byte) error {
 	}
 
 	// update memory index
-	if ok := db.index.Put(key, pos); ok {
+	if ok := db.index.Put(key, pos); !ok {
 		return ErrIndexUpdateFailed
 	}
 

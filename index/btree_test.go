@@ -175,3 +175,224 @@ func TestBTree_Put(t *testing.T) {
 		})
 	}
 }
+
+func TestBTree_Iterator(t *testing.T) {
+	tests := []struct {
+		name    string
+		pre     func() *BTree
+		reverse bool
+		valid   func(t *testing.T, it Iterator)
+	}{
+		{
+			name:    "BTree is empty",
+			reverse: false,
+			pre: func() *BTree {
+				return NewBTree()
+			},
+			valid: func(t *testing.T, it Iterator) {
+				if it.Valid() {
+					t.Errorf("Valid() = %v", it)
+				}
+			},
+		},
+		{
+			name:    "BTree has one item",
+			reverse: false,
+			pre: func() *BTree {
+				bt := NewBTree()
+				bt.Put([]byte("key1"), &data.LogRecordPos{
+					Fid:    1,
+					Offset: 100,
+				})
+				return bt
+			},
+			valid: func(t *testing.T, it Iterator) {
+				if !it.Valid() {
+					t.Errorf("Valid() = %v", it)
+				}
+				if it.Key() == nil || it.Value() == nil {
+					t.Errorf("Key() = %v, Value() = %v", it.Key(), it.Value())
+				}
+				it.Next()
+				if it.Valid() {
+					t.Errorf("Valid() = %v", it)
+				}
+			},
+		},
+		{
+			name:    "BTree has many item",
+			reverse: false,
+			pre: func() *BTree {
+				bt := NewBTree()
+				bt.Put([]byte("key1"), &data.LogRecordPos{
+					Fid:    1,
+					Offset: 100,
+				})
+				bt.Put([]byte("key2"), &data.LogRecordPos{
+					Fid:    1,
+					Offset: 100,
+				})
+				bt.Put([]byte("key3"), &data.LogRecordPos{
+					Fid:    1,
+					Offset: 100,
+				})
+				return bt
+			},
+			valid: func(t *testing.T, it Iterator) {
+				for it.Rewind(); it.Valid(); it.Next() {
+					if it.Key() == nil || it.Value() == nil {
+						t.Errorf("Key() = %v, Value() = %v", it.Key(), it.Value())
+					}
+					t.Log(string(it.Key()), it.Value())
+				}
+			},
+		},
+		{
+			name:    "BTree has many item reverse",
+			reverse: false,
+			pre: func() *BTree {
+				bt := NewBTree()
+				bt.Put([]byte("key1"), &data.LogRecordPos{
+					Fid:    1,
+					Offset: 100,
+				})
+				bt.Put([]byte("key2"), &data.LogRecordPos{
+					Fid:    1,
+					Offset: 100,
+				})
+				bt.Put([]byte("key3"), &data.LogRecordPos{
+					Fid:    1,
+					Offset: 100,
+				})
+				return bt
+			},
+			valid: func(t *testing.T, it Iterator) {
+				for it.Rewind(); it.Valid(); it.Next() {
+					if it.Key() == nil || it.Value() == nil {
+						t.Errorf("Key() = %v, Value() = %v", it.Key(), it.Value())
+					}
+					t.Log(string(it.Key()), it.Value())
+				}
+			},
+		},
+		{
+			name:    "BTree has many item seek",
+			reverse: true,
+			pre: func() *BTree {
+				bt := NewBTree()
+				bt.Put([]byte("key1"), &data.LogRecordPos{
+					Fid:    1,
+					Offset: 100,
+				})
+				bt.Put([]byte("key2"), &data.LogRecordPos{
+					Fid:    1,
+					Offset: 100,
+				})
+				bt.Put([]byte("key3"), &data.LogRecordPos{
+					Fid:    1,
+					Offset: 100,
+				})
+				return bt
+			},
+			valid: func(t *testing.T, it Iterator) {
+				for it.Seek([]byte("key2")); it.Valid(); it.Next() {
+					if it.Key() == nil || it.Value() == nil {
+						t.Errorf("Key() = %v, Value() = %v", it.Key(), it.Value())
+					}
+					t.Log(string(it.Key()), it.Value())
+				}
+			},
+		},
+		{
+			name:    "BTree has many item seek",
+			reverse: true,
+			pre: func() *BTree {
+				bt := NewBTree()
+				bt.Put([]byte("key1"), &data.LogRecordPos{
+					Fid:    1,
+					Offset: 100,
+				})
+				bt.Put([]byte("key2"), &data.LogRecordPos{
+					Fid:    1,
+					Offset: 100,
+				})
+				bt.Put([]byte("key3"), &data.LogRecordPos{
+					Fid:    1,
+					Offset: 100,
+				})
+				return bt
+			},
+			valid: func(t *testing.T, it Iterator) {
+				for it.Seek([]byte("key2")); it.Valid(); it.Next() {
+					if it.Key() == nil || it.Value() == nil {
+						t.Errorf("Key() = %v, Value() = %v", it.Key(), it.Value())
+					}
+					t.Log(string(it.Key()), it.Value())
+				}
+			},
+		},
+		{
+			name:    "BTree has many item seek",
+			reverse: true,
+			pre: func() *BTree {
+				bt := NewBTree()
+				bt.Put([]byte("key1"), &data.LogRecordPos{
+					Fid:    1,
+					Offset: 100,
+				})
+				bt.Put([]byte("key2"), &data.LogRecordPos{
+					Fid:    1,
+					Offset: 100,
+				})
+				bt.Put([]byte("key3"), &data.LogRecordPos{
+					Fid:    1,
+					Offset: 100,
+				})
+				return bt
+			},
+			valid: func(t *testing.T, it Iterator) {
+				for it.Seek([]byte("00")); it.Valid(); it.Next() {
+					if it.Key() == nil || it.Value() == nil {
+						t.Errorf("Key() = %v, Value() = %v", it.Key(), it.Value())
+					}
+					t.Log(string(it.Key()), it.Value())
+				}
+			},
+		},
+		{
+			name:    "BTree has many item seek",
+			reverse: true,
+			pre: func() *BTree {
+				bt := NewBTree()
+				bt.Put([]byte("key1"), &data.LogRecordPos{
+					Fid:    1,
+					Offset: 100,
+				})
+				bt.Put([]byte("key2"), &data.LogRecordPos{
+					Fid:    1,
+					Offset: 100,
+				})
+				bt.Put([]byte("key3"), &data.LogRecordPos{
+					Fid:    1,
+					Offset: 100,
+				})
+				return bt
+			},
+			valid: func(t *testing.T, it Iterator) {
+				for it.Seek([]byte("zz")); it.Valid(); it.Next() {
+					if it.Key() == nil || it.Value() == nil {
+						t.Errorf("Key() = %v, Value() = %v", it.Key(), it.Value())
+					}
+					t.Log(string(it.Key()), it.Value())
+				}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bt := tt.pre()
+			it := bt.Iterator(tt.reverse)
+			tt.valid(t, it)
+		})
+	}
+}

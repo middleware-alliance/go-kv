@@ -20,6 +20,10 @@ type Indexer interface {
 	// Delete removes a key-value pair from the index.
 	// If the key does not exist, it returns false.
 	Delete(key []byte) bool
+	// Size returns the number of key-value pairs in the index.
+	Size() int
+	// Iterator creates a new iterator for the index.
+	Iterator(reverse bool) Iterator
 }
 
 type IndexType = int8
@@ -51,4 +55,28 @@ type Item struct {
 
 func (i *Item) Less(bi btree.Item) bool {
 	return bytes.Compare(i.Key, bi.(*Item).Key) < 0
+}
+
+// Iterator is the interface for iterating over the index.
+type Iterator interface {
+	// Rewind resets the iterator to the beginning of the index.
+	Rewind()
+
+	// Seek moves the iterator to the position of the first key greater than or equal to the given key.
+	Seek(key []byte)
+
+	// Next moves the iterator to the next position.
+	Next()
+
+	// Valid returns whether the iterator is valid.
+	Valid() bool
+
+	// Key returns the current key.
+	Key() []byte
+
+	// Value returns the current value.
+	Value() *data.LogRecordPos
+
+	// Close closes the iterator.
+	Close()
 }

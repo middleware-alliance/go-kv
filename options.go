@@ -9,6 +9,12 @@ type Options struct {
 	IndexType    IndexType // type of index to use for lookups
 }
 
+// IteratorOptions is a struct for options to be used while iterating over the data.
+type IteratorOptions struct {
+	Prefix  []byte // prefix to filter keys by, default is nil to return all keys
+	Reverse bool   // whether to iterate in reverse order or not, default is false
+}
+
 type IndexType = int8
 
 const (
@@ -23,4 +29,9 @@ var DefaultOptions = Options{
 	DataFileSize: 256 * 1024 * 1024, // 256MB
 	SyncWrites:   false,
 	IndexType:    Btree,
+}
+
+var DefaultIteratorOptions = IteratorOptions{
+	Prefix:  nil,
+	Reverse: false,
 }

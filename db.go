@@ -169,6 +169,43 @@ func (db *DB) loadIndexFromDataFiles() error {
 	return nil
 }
 
+// Close closes the database.
+func (db *DB) Close() error {
+	if db.activeFile == nil {
+		return nil
+	}
+
+	db.mut.Lock()
+	defer db.mut.Unlock()
+
+	// close active data file
+	if err := db.activeFile.Close(); err != nil {
+		return err
+	}
+
+	// close older data files
+	for _, dataFile := range db.olderFiles {
+		if err := dataFile.Close(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// Sync flushes the database to disk.
+func (db *DB) Sync() error {
+	if db.activeFile == nil {
+		return nil
+	}
+
+	db.mut.Lock()
+	defer db.mut.Unlock()
+
+	// flush active data file
+	return db.activeFile.Sync()
+}
+
 // Put inserts a key-value pair into the database.
 // It returns an error if the key is empty.
 // It returns an error if the index update failed.
@@ -323,6 +360,35 @@ func (db *DB) Get(key []byte) ([]byte, error) {
 		return nil, ErrKeyNotFound
 	}
 
+	/*// lookup log record from data file identified by logRecordPos
+	var dataFile *data.DataFile
+	if logRecordPos.Fid == db.activeFile.FileId {
+		dataFile = db.activeFile
+	} else {
+		dataFile = db.olderFiles[logRecordPos.Fid]
+	}
+	// if data file not found, return error
+	if dataFile == nil {
+		return nil, ErrDataFileNotFound
+	}
+
+	// read log record from data file offset by logRecordPos
+	logRecord, _, err := dataFile.ReadLogRecord(logRecordPos.Offset)
+	if err != nil {
+		return nil, err
+	}
+
+	// log record validation, if log record is deleted, return error
+	if logRecord.Type == data.LogRecordDeleted {
+		return nil, ErrKeyNotFound
+	}
+
+	return logRecord.Value, nil*/
+	return db.getValueByPosition(logRecordPos)
+}
+
+// getValueByPosition retrieves the value of a key from the database by log record position.
+func (db *DB) getValueByPosition(logRecordPos *data.LogRecordPos) ([]byte, error) {
 	// lookup log record from data file identified by logRecordPos
 	var dataFile *data.DataFile
 	if logRecordPos.Fid == db.activeFile.FileId {
@@ -347,4 +413,38 @@ func (db *DB) Get(key []byte) ([]byte, error) {
 	}
 
 	return logRecord.Value, nil
+}
+
+// ListKeys retrieves all keys in the database.
+func (db *DB) ListKeys() [][]byte {
+	iterator := db.index.Iterator(true)
+	defer iterator.Close()
+	keys := make([][]byte, db.index.Size())
+	var idx int
+	for iterator.Rewind(); iterator.Valid(); iterator.Next() {
+		keys[idx] = iterator.Key()
+		idx++
+	}
+	return keys
+}
+
+// Fold applies a function to all key-value pairs in the database.
+func (db *DB) Fold(fn func(key []byte, value []byte) bool) error {
+	db.mut.RLock()
+	defer db.mut.RUnlock()
+
+	iterator := db.index.Iterator(false)
+	defer iterator.Close()
+	for iterator.Rewind(); iterator.Valid(); iterator.Next() {
+		key := iterator.Key()
+		value, err := db.getValueByPosition(iterator.Value())
+		if err != nil {
+			return err
+		}
+		if !fn(key, value) {
+			break
+		}
+	}
+
+	return nil
 }

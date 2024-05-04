@@ -1,6 +1,7 @@
 package go_kv
 
 import (
+	"bytes"
 	"errors"
 	"go-kv/utils"
 	"os"
@@ -8,21 +9,30 @@ import (
 	"testing"
 )
 
+// 测试完成之后销毁 DB 数据目录
+func destroyDB(db *DB) {
+	if db != nil {
+		err := db.Close()
+		if err != nil {
+			return
+		}
+		err = os.RemoveAll(db.options.DirPath)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
 func TestDB_Delete(t *testing.T) {
 	opts := DefaultOptions
 	dir, _ := os.MkdirTemp("/tmp", "bitcask-go-get")
-	defer func(path string) {
-		err := os.RemoveAll(path)
-		if err != nil {
-			t.Errorf("os.RemoveAll() error = %v", err)
-		}
-	}(dir)
 	opts.DirPath = dir
 	opts.DataFileSize = 64 * 1024 * 1024
 	db, err := Open(opts)
 	if err != nil {
 		t.Errorf("Open() error = %v", err)
 	}
+	defer destroyDB(db)
 	tests := []struct {
 		name    string
 		key     []byte
@@ -96,23 +106,19 @@ func TestDB_Delete(t *testing.T) {
 			tt.getFn()
 		})
 	}
+
 }
 
 func TestDB_Get(t *testing.T) {
 	opts := DefaultOptions
 	dir, _ := os.MkdirTemp("/tmp", "bitcask-go-get")
-	defer func(path string) {
-		err := os.RemoveAll(path)
-		if err != nil {
-			t.Errorf("os.RemoveAll() error = %v", err)
-		}
-	}(dir)
 	opts.DirPath = dir
 	opts.DataFileSize = 64 * 1024 * 1024
 	db, err := Open(opts)
 	if err != nil {
 		t.Errorf("Open() error = %v", err)
 	}
+	defer destroyDB(db)
 	tests := []struct {
 		name    string
 		key     []byte
@@ -185,18 +191,13 @@ func TestDB_Get(t *testing.T) {
 func TestDB_Put(t *testing.T) {
 	opts := DefaultOptions
 	dir, _ := os.MkdirTemp("/tmp", "bitcask-go-put")
-	defer func(path string) {
-		err := os.RemoveAll(path)
-		if err != nil {
-			t.Errorf("os.RemoveAll() error = %v", err)
-		}
-	}(dir)
 	opts.DirPath = dir
 	opts.DataFileSize = 64 * 1024 * 1024
 	db, err := Open(opts)
 	if err != nil {
 		t.Errorf("Open() error = %v", err)
 	}
+	defer destroyDB(db)
 	tests := []struct {
 		name    string
 		key     []byte
@@ -313,6 +314,180 @@ func Test_checkOptions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if err := checkOptions(tt.options); (err != nil) != tt.wantErr {
 				t.Errorf("checkOptions() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestDB_ListKeys(t *testing.T) {
+	opts := DefaultOptions
+	dir, _ := os.MkdirTemp("", "bitcask-go-list-keys")
+	opts.DirPath = dir
+
+	tests := []struct {
+		name string
+		pre  func() *DB
+		post func([][]byte)
+	}{
+		{
+			name: "test_list_keys_with_one_key",
+			pre: func() *DB {
+				db, err := Open(opts)
+				if err != nil {
+					t.Errorf("Open() error = %v", err)
+				}
+				return db
+			},
+			post: func(got [][]byte) {
+				if len(got) != 0 {
+					t.Errorf("ListKeys() got = %v, want %v", len(got), 1)
+				}
+			},
+		},
+		{
+			name: "test_list_keys_with_one_key",
+			pre: func() *DB {
+				db, err := Open(opts)
+				if err != nil {
+					t.Errorf("Open() error = %v", err)
+				}
+				_ = db.Put(utils.GetTestKey(1), utils.RandomValue(24))
+				return db
+			},
+			post: func(got [][]byte) {
+				if len(got) != 1 {
+					t.Errorf("ListKeys() got = %v, want %v", len(got), 2)
+				}
+			},
+		},
+		{
+			name: "test_list_keys_with_many_keys",
+			pre: func() *DB {
+				db, err := Open(opts)
+				if err != nil {
+					t.Errorf("Open() error = %v", err)
+				}
+				for i := 1; i <= 1000000; i++ {
+					_ = db.Put(utils.GetTestKey(i), utils.RandomValue(24))
+				}
+				return db
+			},
+			post: func(got [][]byte) {
+				if len(got) != 1000000 {
+					t.Errorf("ListKeys() got = %v, want %v", len(got), 1000000)
+				}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db := tt.pre()
+			got := db.ListKeys()
+			tt.post(got)
+			destroyDB(db)
+		})
+	}
+}
+
+func TestDB_Fold(t *testing.T) {
+	opts := DefaultOptions
+	dir, _ := os.MkdirTemp("", "bitcask-go-fold")
+	opts.DirPath = dir
+
+	tests := []struct {
+		name string
+		fn   func(key []byte, value []byte) bool
+		pre  func() *DB
+	}{
+		{
+			name: "test_fold",
+			fn: func(key []byte, value []byte) bool {
+				t.Logf("key: %s, value: %s", key, value)
+				return !bytes.Equal(key, utils.GetTestKey(50))
+			},
+			pre: func() *DB {
+				db, err := Open(opts)
+				if err != nil {
+					t.Errorf("Open() error = %v", err)
+				}
+				for i := 1; i <= 100; i++ {
+					_ = db.Put(utils.GetTestKey(i), utils.RandomValue(24))
+				}
+				return db
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db := tt.pre()
+			err := db.Fold(tt.fn)
+			if err != nil {
+				t.Errorf("Fold() error = %v", err)
+			}
+			destroyDB(db)
+		})
+	}
+}
+
+func TestDB_Close(t *testing.T) {
+	opts := DefaultOptions
+	dir, _ := os.MkdirTemp("", "bitcask-go-close")
+	opts.DirPath = dir
+	db, err := Open(opts)
+	if err != nil {
+		t.Errorf("Open() error = %v", err)
+	}
+	defer destroyDB(db)
+	err = db.Put(utils.GetTestKey(1), utils.RandomValue(24))
+	if err != nil {
+		t.Errorf("Put() error = %v", err)
+	}
+
+	tests := []struct {
+		name string
+		db   *DB
+	}{
+		{
+			name: "test_close_with_one_key",
+			db:   db,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err = tt.db.Close(); err != nil {
+				t.Errorf("Close() error = %v", err)
+			}
+		})
+	}
+}
+
+func TestDB_Sync(t *testing.T) {
+	opts := DefaultOptions
+	dir, _ := os.MkdirTemp("", "bitcask-go-close")
+	opts.DirPath = dir
+	db, err := Open(opts)
+	if err != nil {
+		t.Errorf("Open() error = %v", err)
+	}
+	defer destroyDB(db)
+	err = db.Put(utils.GetTestKey(1), utils.RandomValue(24))
+	if err != nil {
+		t.Errorf("Put() error = %v", err)
+	}
+
+	tests := []struct {
+		name string
+		db   *DB
+	}{
+		{
+			name: "test_close_with_one_key",
+			db:   db,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err = tt.db.Sync(); err != nil {
+				t.Errorf("Close() error = %v", err)
 			}
 		})
 	}

@@ -10,6 +10,7 @@ type LogRecordType uint8
 const (
 	LogRecordNormal LogRecordType = iota
 	LogRecordDeleted
+	LogRecordTxFinished
 )
 
 // maxLogRecordHeaderSize is the size of the header of a log record in bytes.
@@ -110,4 +111,10 @@ func getLogRecordCRC(lr *LogRecord, header []byte) uint32 {
 type LogRecordPos struct {
 	Fid    uint32 // file id of the log file
 	Offset int64  // offset in the file
+}
+
+// TransactionRecord represents a transaction record.
+type TransactionRecord struct {
+	Record *LogRecord
+	Pos    *LogRecordPos
 }

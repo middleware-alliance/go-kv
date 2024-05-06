@@ -9,4 +9,5 @@ var (
 	ErrIndexUpdateFailed      = errors.New("index update failed")
 	ErrDataFileNotFound       = errors.New("data file not found")
 	ErrDataDirectoryCorrupted = errors.New("data directory is corrupted")
+	ErrExceedMaxBatchNum      = errors.New("exceed max batch number")
 )

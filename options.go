@@ -15,6 +15,12 @@ type IteratorOptions struct {
 	Reverse bool   // whether to iterate in reverse order or not, default is false
 }
 
+// WriteBatchOptions is a struct for options to be used while writing a batch of data.
+type WriteBatchOptions struct {
+	MaxBatchNum uint // maximum number of writes to buffer before flushing to disk, default is 1000
+	SyncWrites  bool // whether to sync writes to disk or not, default is false
+}
+
 type IndexType = int8
 
 const (
@@ -34,4 +40,9 @@ var DefaultOptions = Options{
 var DefaultIteratorOptions = IteratorOptions{
 	Prefix:  nil,
 	Reverse: false,
+}
+
+var DefaultWriteBatchOptions = WriteBatchOptions{
+	MaxBatchNum: 1000,
+	SyncWrites:  false,
 }

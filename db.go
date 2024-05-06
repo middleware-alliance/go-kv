@@ -21,6 +21,8 @@ type DB struct {
 	index      index.Indexer             // memory index
 
 	loadDataFileIds []int // created by loadDataFiles(), only used for loadIndexFromDataFiles(), not used in other methods
+
+	seqNo uint64 // transaction sequence number for log records
 }
 
 // Open opens a (bitcask) database with the given options.
@@ -121,6 +123,24 @@ func (db *DB) loadIndexFromDataFiles() error {
 		return nil
 	}
 
+	// define a function to update memory index from a log record
+	updateIndex := func(key []byte, typ data.LogRecordType, pos *data.LogRecordPos) error {
+		var ok bool
+		if typ == data.LogRecordDeleted {
+			ok = db.index.Delete(key)
+		} else {
+			ok = db.index.Put(key, pos)
+		}
+		if !ok {
+			return ErrIndexUpdateFailed
+		}
+		return nil
+	}
+
+	// temporary storage for transactional log records
+	transactionRecords := make(map[uint64][]*data.TransactionRecord)
+	currentSeqNo := nonTransactionalSeqNo
+
 	// load all data files, handle file order records content
 	for idx, fId := range db.loadDataFileIds {
 		var fieldId = uint32(fId)
@@ -146,14 +166,35 @@ func (db *DB) loadIndexFromDataFiles() error {
 				Fid:    fieldId,
 				Offset: offset,
 			}
-			var ok bool
-			if record.Type == data.LogRecordDeleted {
-				ok = db.index.Delete(record.Key)
+
+			// parse log record key to extract sequence number
+			seqNo, origKey := parseLogRecordKey(record.Key)
+			if seqNo == nonTransactionalSeqNo {
+				// non-transactional log record, update memory index directly
+				if err = updateIndex(origKey, record.Type, logRecordPos); err != nil {
+					return err
+				}
 			} else {
-				ok = db.index.Put(record.Key, logRecordPos)
+				// transactional log record, store in temporary storage
+				if record.Type == data.LogRecordTxFinished {
+					for _, trRecord := range transactionRecords[seqNo] {
+						if err = updateIndex(trRecord.Record.Key, trRecord.Record.Type, trRecord.Pos); err != nil {
+							return err
+						}
+					}
+					delete(transactionRecords, seqNo)
+				} else {
+					record.Key = origKey
+					transactionRecords[seqNo] = append(transactionRecords[seqNo], &data.TransactionRecord{
+						Record: record,
+						Pos:    logRecordPos,
+					})
+				}
 			}
-			if !ok {
-				return ErrIndexUpdateFailed
+
+			// update current transaction sequence number
+			if seqNo > currentSeqNo {
+				currentSeqNo = seqNo
 			}
 
 			// update offset for next iteration
@@ -166,6 +207,8 @@ func (db *DB) loadIndexFromDataFiles() error {
 		}
 	}
 
+	// update transaction sequence number
+	db.seqNo = currentSeqNo
 	return nil
 }
 
@@ -218,13 +261,13 @@ func (db *DB) Put(key, value []byte) error {
 
 	// new log record
 	logRecord := &data.LogRecord{
-		Key:   key,
+		Key:   logRecordKeyWithSeq(key, nonTransactionalSeqNo),
 		Value: value,
 		Type:  data.LogRecordNormal,
 	}
 
 	// append log record to active data file
-	pos, err := db.appendLogRecord(logRecord)
+	pos, err := db.appendLogRecordWithLock(logRecord)
 	if err != nil {
 		return err
 	}
@@ -251,12 +294,12 @@ func (db *DB) Delete(key []byte) error {
 
 	// new log record
 	logRecord := &data.LogRecord{
-		Key:  key,
+		Key:  logRecordKeyWithSeq(key, nonTransactionalSeqNo),
 		Type: data.LogRecordDeleted,
 	}
 
 	// append log record to active data file
-	_, err := db.appendLogRecord(logRecord)
+	_, err := db.appendLogRecordWithLock(logRecord)
 	if err != nil {
 		return err
 	}
@@ -269,11 +312,15 @@ func (db *DB) Delete(key []byte) error {
 	return nil
 }
 
-// appendLogRecord appends a log record to the active data file.
-func (db *DB) appendLogRecord(logRecord *data.LogRecord) (*data.LogRecordPos, error) {
+// appendLogRecordWithLock appends a log record to the active data file.
+func (db *DB) appendLogRecordWithLock(logRecord *data.LogRecord) (*data.LogRecordPos, error) {
 	db.mut.Lock()
 	defer db.mut.Unlock()
+	return db.appendLogRecord(logRecord)
+}
 
+// appendLogRecord appends a log record to the active data file.
+func (db *DB) appendLogRecord(logRecord *data.LogRecord) (*data.LogRecordPos, error) {
 	// if active file is full, create a new one
 	// if active file is not full, append log record to active file
 	if db.activeFile == nil {

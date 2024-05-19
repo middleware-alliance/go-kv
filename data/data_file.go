@@ -6,6 +6,7 @@ import (
 	"go-kv/fio"
 	"hash/crc32"
 	"io"
+	"path/filepath"
 	"strings"
 )
 
@@ -15,7 +16,9 @@ var (
 
 const (
 	// DataFileNameSuffix is the prefix of data file names.
-	DataFileNameSuffix = ".data"
+	DataFileNameSuffix    = ".data"
+	HintFileName          = "hint-index"
+	MergeFinishedFileName = "merge-finished"
 )
 
 // DataFile is a struct that represents a data file.
@@ -31,7 +34,35 @@ func OpenDataFile(dirPath string, fileId uint32) (*DataFile, error) {
 		dirPath = dirPath + "/"
 	}
 	// file name is the fileId with the suffix ".data"
+	fileName := GetDataFileName(dirPath, fileId)
+	return newDataFile(fileName, fileId)
+}
+
+// GetDataFileName returns the file name for the given fileId in the given directory.
+func GetDataFileName(dirPath string, fileId uint32) string {
 	fileName := fmt.Sprintf("%s%09d", dirPath, fileId) + DataFileNameSuffix
+	return fileName
+}
+
+// OpenHintFile opens the hint file in the given directory.
+func OpenHintFile(dirPath string) (*DataFile, error) {
+	if !strings.HasSuffix(dirPath, "/") {
+		dirPath = dirPath + "/"
+	}
+	fileName := filepath.Join(dirPath, HintFileName)
+	return newDataFile(fileName, 0)
+}
+
+// OpenMergeFinishedFile opens the merge finished file in the given directory.
+func OpenMergeFinishedFile(dirPath string) (*DataFile, error) {
+	if !strings.HasSuffix(dirPath, "/") {
+		dirPath = dirPath + "/"
+	}
+	fileName := filepath.Join(dirPath, MergeFinishedFileName)
+	return newDataFile(fileName, 0)
+}
+
+func newDataFile(fileName string, fileId uint32) (*DataFile, error) {
 	// create a new file IO manager for the file
 	ioManager, err := fio.NewFileIOManager(fileName)
 	if err != nil {
@@ -115,6 +146,16 @@ func (df *DataFile) Write(data []byte) error {
 	}
 	df.WriteOff += int64(n)
 	return nil
+}
+
+// WriteHintRecord writes the given log record position hint to the data file.
+func (df *DataFile) WriteHintRecord(key []byte, pos *LogRecordPos) error {
+	record := &LogRecord{
+		Key:   key,
+		Value: EncodeLogRecordPos(pos),
+	}
+	encRecord, _ := EncodeLogRecord(record)
+	return df.Write(encRecord)
 }
 
 // Sync flushes any unwritten data to disk.

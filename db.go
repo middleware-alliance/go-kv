@@ -6,6 +6,7 @@ import (
 	"go-kv/index"
 	"io"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -23,6 +24,8 @@ type DB struct {
 	loadDataFileIds []int // created by loadDataFiles(), only used for loadIndexFromDataFiles(), not used in other methods
 
 	seqNo uint64 // transaction sequence number for log records
+
+	isMerging bool // flag for merging data files
 }
 
 // Open opens a (bitcask) database with the given options.
@@ -48,8 +51,18 @@ func Open(options Options) (*DB, error) {
 		index:      index.NewIndexer(options.IndexType),
 	}
 
+	// load merge data files
+	if err := db.loadMergeFiles(); err != nil {
+		return nil, err
+	}
+
 	// load data files from disk
 	if err := db.loadDataFiles(); err != nil {
+		return nil, err
+	}
+
+	// load hint file
+	if err := db.loadIndexFormHintFile(); err != nil {
 		return nil, err
 	}
 
@@ -123,6 +136,19 @@ func (db *DB) loadIndexFromDataFiles() error {
 		return nil
 	}
 
+	// is merging data files
+	hasMerge, nonMergeFileId := false, uint32(0)
+	mergeFinFileName := filepath.Join(db.options.DirPath, data.MergeFinishedFileName)
+	if _, err := os.Stat(mergeFinFileName); err == nil {
+		fid, err := db.getNonMergeFileId(db.options.DirPath)
+		if err != nil {
+			return err
+		}
+
+		hasMerge = true
+		nonMergeFileId = fid
+	}
+
 	// define a function to update memory index from a log record
 	updateIndex := func(key []byte, typ data.LogRecordType, pos *data.LogRecordPos) error {
 		var ok bool
@@ -144,6 +170,10 @@ func (db *DB) loadIndexFromDataFiles() error {
 	// load all data files, handle file order records content
 	for idx, fId := range db.loadDataFileIds {
 		var fieldId = uint32(fId)
+		// if merging data files(file id < non-merge file id), skip all data files before non-merge file id
+		if hasMerge && fieldId < nonMergeFileId {
+			continue
+		}
 		var dataFile *data.DataFile
 		if fieldId == db.activeFile.FileId {
 			dataFile = db.activeFile

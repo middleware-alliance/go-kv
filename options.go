@@ -28,13 +28,15 @@ const (
 	Btree IndexType = iota + 1
 	// ART is an Adaptive Radix Tree based index.
 	ART
+	// BPlusTree is a B+tree based index.
+	BPlusTree
 )
 
 var DefaultOptions = Options{
 	DirPath:      os.TempDir(),
 	DataFileSize: 256 * 1024 * 1024, // 256MB
 	SyncWrites:   false,
-	IndexType:    Btree,
+	IndexType:    BPlusTree,
 }
 
 var DefaultIteratorOptions = IteratorOptions{

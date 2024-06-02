@@ -20,6 +20,10 @@ type WriteBatch struct {
 
 // NewWriteBatch creates a new WriteBatch object with the given options.
 func (db *DB) NewWriteBatch(options WriteBatchOptions) *WriteBatch {
+	if db.options.IndexType == BPlusTree && !db.seqNoFileExists && !db.isInitial {
+		panic("sequence number file not found, cannot create write batch")
+	}
+
 	return &WriteBatch{
 		options:       options,
 		mu:            &sync.Mutex{},

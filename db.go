@@ -13,6 +13,10 @@ import (
 	"sync"
 )
 
+const (
+	SeqNoKey = "seq.no"
+)
+
 // DB represents a key-value store.
 type DB struct {
 	options    Options
@@ -26,6 +30,9 @@ type DB struct {
 	seqNo uint64 // transaction sequence number for log records
 
 	isMerging bool // flag for merging data files
+
+	seqNoFileExists bool // flag for seqNoFile existence
+	isInitial       bool // flag for initial database creation
 }
 
 // Open opens a (bitcask) database with the given options.
@@ -36,11 +43,20 @@ func Open(options Options) (*DB, error) {
 		return nil, err
 	}
 
+	var isInitial bool
 	// check if data directory exists, create if not
 	if _, err := os.Stat(options.DirPath); os.IsNotExist(err) {
+		isInitial = true
 		if err = os.MkdirAll(options.DirPath, os.ModePerm); err != nil {
 			return nil, err
 		}
+	}
+	entries, err := os.ReadDir(options.DirPath)
+	if err != nil {
+		return nil, err
+	}
+	if len(entries) == 0 {
+		isInitial = true
 	}
 
 	// init DB
@@ -48,7 +64,8 @@ func Open(options Options) (*DB, error) {
 		options:    options,
 		mut:        new(sync.RWMutex),
 		olderFiles: make(map[uint32]*data.DataFile),
-		index:      index.NewIndexer(options.IndexType),
+		index:      index.NewIndexer(options.IndexType, options.DirPath, options.SyncWrites),
+		isInitial:  isInitial,
 	}
 
 	// load merge data files
@@ -61,14 +78,31 @@ func Open(options Options) (*DB, error) {
 		return nil, err
 	}
 
-	// load hint file
-	if err := db.loadIndexFormHintFile(); err != nil {
-		return nil, err
+	// B+Tree index type, not load hint file and load memory index from data files
+	if options.IndexType != BPlusTree {
+		// load hint file
+		if err = db.loadIndexFormHintFile(); err != nil {
+			return nil, err
+		}
+
+		// load memory index from data files
+		if err = db.loadIndexFromDataFiles(); err != nil {
+			return nil, err
+		}
 	}
 
-	// load memory index from data files
-	if err := db.loadIndexFromDataFiles(); err != nil {
-		return nil, err
+	// get transaction sequence number , if index type is B+Tree, seqNo is 0
+	if options.IndexType == BPlusTree {
+		if err = db.loadSeqNo(); err != nil {
+			return nil, err
+		}
+		if db.activeFile != nil {
+			size, err := db.activeFile.IoManager.Size()
+			if err != nil {
+				return nil, err
+			}
+			db.activeFile.WriteOff = size
+		}
 	}
 
 	return db, nil
@@ -250,6 +284,27 @@ func (db *DB) Close() error {
 
 	db.mut.Lock()
 	defer db.mut.Unlock()
+	// index close
+	if err := db.index.Close(); err != nil {
+		return err
+	}
+
+	// save current transaction sequence number to seqNoFile
+	seqNoFile, err := data.OpenSeqNoFile(db.options.DirPath)
+	if err != nil {
+		return err
+	}
+	record := &data.LogRecord{
+		Key:   []byte(SeqNoKey),
+		Value: []byte(strconv.FormatUint(db.seqNo, 10)),
+	}
+	encodeLogRecord, _ := data.EncodeLogRecord(record)
+	if err = seqNoFile.Write(encodeLogRecord); err != nil {
+		return err
+	}
+	if err = seqNoFile.Sync(); err != nil {
+		return err
+	}
 
 	// close active data file
 	if err := db.activeFile.Close(); err != nil {
@@ -523,5 +578,31 @@ func (db *DB) Fold(fn func(key []byte, value []byte) bool) error {
 		}
 	}
 
+	return nil
+}
+
+// loadSeqNo loads the current transaction sequence number from seqNoFile.
+func (db *DB) loadSeqNo() error {
+	fileName := filepath.Join(db.options.DirPath, data.SeqNoFileName)
+	if _, err := os.Stat(fileName); err != nil {
+		return nil
+	}
+
+	seqNoFile, err := data.OpenSeqNoFile(db.options.DirPath)
+	if err != nil {
+		return err
+	}
+
+	record, _, err := seqNoFile.ReadLogRecord(0)
+	if err != nil {
+		return err
+	}
+	seqNo, err := strconv.ParseUint(string(record.Value), 10, 64)
+	if err != nil {
+		return err
+	}
+
+	db.seqNo = seqNo
+	db.seqNoFileExists = true
 	return nil
 }

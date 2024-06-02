@@ -86,6 +86,11 @@ func (B *BTree) Iterator(reverse bool) Iterator {
 	return newBtreeIterator(B.tree, reverse)
 }
 
+// Close releases any resources associated with the BTree.
+func (B *BTree) Close() error {
+	return nil
+}
+
 // btreeIterator is an iterator for the BTree.
 type btreeIterator struct {
 	currIndex int     // current index in the BTree

@@ -65,6 +65,11 @@ func (art *AdaptiveRadixTree) Iterator(reverse bool) Iterator {
 	return newArtIterator(art.tree, reverse)
 }
 
+// Close releases any resources associated with the BTree.
+func (art *AdaptiveRadixTree) Close() error {
+	return nil
+}
+
 // artIterator is an iterator for the AdaptiveRadixTree.
 type artIterator struct {
 	currIndex int     // current index in the BTree

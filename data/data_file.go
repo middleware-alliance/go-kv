@@ -19,6 +19,7 @@ const (
 	DataFileNameSuffix    = ".data"
 	HintFileName          = "hint-index"
 	MergeFinishedFileName = "merge-finished"
+	SeqNoFileName         = "seq-no"
 )
 
 // DataFile is a struct that represents a data file.
@@ -59,6 +60,15 @@ func OpenMergeFinishedFile(dirPath string) (*DataFile, error) {
 		dirPath = dirPath + "/"
 	}
 	fileName := filepath.Join(dirPath, MergeFinishedFileName)
+	return newDataFile(fileName, 0)
+}
+
+// OpenSeqNoFile opens the seq no file in the given directory.
+func OpenSeqNoFile(dirPath string) (*DataFile, error) {
+	if !strings.HasSuffix(dirPath, "/") {
+		dirPath = dirPath + "/"
+	}
+	fileName := filepath.Join(dirPath, SeqNoFileName)
 	return newDataFile(fileName, 0)
 }
 
